@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use std::collections::HashSet;
 use std::cmp;
 
+#[derive(Debug)]
 pub struct Edge {
     /// from vertex
     pub from: VertId,
@@ -16,7 +17,7 @@ pub struct Edge {
     pub capacity: u16,
 }
 
-type VertId = u16;
+pub type VertId = u16;
 
 pub fn max_flow(edges: &[Edge], from: VertId, to: VertId) -> HashMap<VertId, HashMap<VertId, u16>> {
     let mut vert_to_resid_edges = HashMap::new();
@@ -48,16 +49,14 @@ pub fn max_flow(edges: &[Edge], from: VertId, to: VertId) -> HashMap<VertId, Has
 fn shortest_path(vert_to_edges: &HashMap<VertId, HashMap<VertId, u16>>, from: VertId, to: VertId) -> Vec<VertId> {
     let mut tasks = VecDeque::new();
     tasks.push_back(
-        BFSTask { vert: from, path_to_vert: Vec::new()}
+        BFSTask { vert: from, path_to_vert: Vec::new() }
     );
     let mut visited = HashSet::new();
     visited.insert(from);
     loop {
         let task = tasks.pop_front().unwrap();
-        let dests_option = vert_to_edges.get(&task.vert);
-        if dests_option.is_some() {
-            let dests = dests_option.unwrap().keys();
-            for &dest in dests {
+        if let Some(dest_to_capacity) = vert_to_edges.get(&task.vert) {
+            for &dest in dest_to_capacity.keys() {
                 if dest == to {
                     let mut path_to_dest = task.path_to_vert.clone();
                     path_to_dest.push(task.vert);
@@ -85,20 +84,20 @@ fn shortest_path(vert_to_edges: &HashMap<VertId, HashMap<VertId, u16>>, from: Ve
 
 struct BFSTask {
     vert: VertId,
-    path_to_vert: Vec<VertId>
+    path_to_vert: Vec<VertId>,
 }
 
 fn min_capacity(vert_to_edges: &HashMap<VertId, HashMap<VertId, u16>>, path: &[VertId]) -> u16 {
     let mut min_cap = *vert_to_edges.get(&path[0]).unwrap().get(&path[1]).unwrap();
     for i in 2..path.len() {
-        min_cap = cmp::min(min_cap, *vert_to_edges.get(&path[i-1]).unwrap().get(&path[i]).unwrap());
+        min_cap = cmp::min(min_cap, *vert_to_edges.get(&path[i - 1]).unwrap().get(&path[i]).unwrap());
     }
     min_cap
 }
 
 fn update_residuals(vert_to_resid_edges: &mut HashMap<VertId, HashMap<VertId, u16>>, path: &[VertId], amount: u16) {
     for i in 1..path.len() {
-        let from = path[i-1];
+        let from = path[i - 1];
         let to = path[i];
         {
             let mut dests = vert_to_resid_edges.get_mut(&from).unwrap();
@@ -114,9 +113,41 @@ fn update_residuals(vert_to_resid_edges: &mut HashMap<VertId, HashMap<VertId, u1
 
 fn update_flows(vert_to_flows: &mut HashMap<VertId, HashMap<VertId, u16>>, path: &[VertId], amount: u16) {
     for i in 1..path.len() {
-        let from = path[i-1];
-        let flows = vert_to_flows.entry(from).or_insert_with(||HashMap::new());
+        let mut from_to_amount = amount;
+        let from = path[i - 1];
         let to = path[i];
-        *flows.entry(to).or_insert(0) += amount;
+        let mut remove_to_flows = false;
+        {
+            if let Some(to_flows) = vert_to_flows.get_mut(&to) {
+                let mut remove_to_from_flow = false;
+                {
+                    if let Some(to_from_amount) = to_flows.get_mut(&from) {
+                        if *to_from_amount == amount {
+                            from_to_amount = 0;
+                            remove_to_from_flow = true;
+                        } else if *to_from_amount > amount {
+                            *to_from_amount -= amount;
+                            from_to_amount = 0;
+                        } else {
+                            from_to_amount -= *to_from_amount;
+                            remove_to_from_flow = true;
+                        }
+                    }
+                }
+                if remove_to_from_flow {
+                    to_flows.remove(&from);
+                    if to_flows.is_empty() {
+                        remove_to_flows = true;
+                    }
+                }
+            }
+        }
+        if remove_to_flows {
+            vert_to_flows.remove(&to);
+        }
+        if from_to_amount > 0 {
+            let flows = vert_to_flows.entry(from).or_insert_with(|| HashMap::new());
+            *flows.entry(to).or_insert(0) += amount;
+        }
     }
 }
