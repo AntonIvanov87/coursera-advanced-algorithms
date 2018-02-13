@@ -1,5 +1,6 @@
 pub mod p1_evacuating_people;
 pub mod p2_crews_to_flights;
+pub mod p3_stock_charts;
 
 extern crate core;
 
