@@ -1,7 +1,6 @@
 use std::f64;
 use std::iter;
 use w2_linear_programming::Solution;
-use w2_linear_programming::round_f64;
 use w2_linear_programming::round_around_0;
 
 pub fn solve_simplex(a_orig: &[&[f64]], b_orig: &[f64], c_orig: &[f64]) -> Solution {
